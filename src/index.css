@@ -1,0 +1,57 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-magic-bg: #0A0A0F;
+  --color-magic-surface: #12121A;
+  --color-magic-border: #3B2D52;
+  --color-magic-pink: #FF4D94;
+  --color-magic-text: #E0E0E0;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-magic-bg);
+    color: var(--color-magic-text);
+    font-family: 'Noto Sans SC', sans-serif;
+    font-style: normal !important;
+  }
+  * {
+    font-style: normal !important;
+  }
+  
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-magic-bg);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-magic-border);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-magic-pink);
+  }
+}
+
+@layer components {
+  .btn-action {
+    @apply border border-magic-pink text-magic-pink px-4 py-2 bg-transparent cursor-pointer transition-all duration-200;
+  }
+  .btn-action:hover:not(:disabled) {
+    @apply bg-magic-pink text-[#0A0A0F];
+  }
+  .btn-action:disabled {
+    @apply opacity-50 cursor-not-allowed border-slate-700 text-slate-500 hover:bg-transparent;
+  }
+  .stat-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    @apply p-2;
+  }
+  .log-entry {
+    border-left: 2px solid var(--color-magic-pink);
+    @apply pl-2 mb-3;
+  }
+}
