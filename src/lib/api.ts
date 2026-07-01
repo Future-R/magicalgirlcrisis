@@ -161,6 +161,9 @@ export async function generateTurnData(
   let userContent = `角色当前状态：
 ${JSON.stringify(character, null, 2)}
 
+所有可能获取的危机动作列表（供参考其获取条件和触发条件）：
+${JSON.stringify(CHARACTER_CREATION_RULES.危机动作.map(r => ({名称: r.名称, 持有条件: r.持有条件, 使用条件: r.使用条件, 描述: r.描述, 获得CP: r.获得CP, 获得SP: r.获得SP})), null, 2)}
+
 长期记忆：
 ${longTermMemory.join("\n")}
 
@@ -174,7 +177,10 @@ ${shortTermMemory.join("\n")}
 检定结果：${checkResult}
 
 请推进故事（约800字，合理分段），使用第二人称（“你”）进行叙述，结算上一回合行动的后果（更新HP/MP/AP/SP/CP等状态），并提供3个本回合的推荐行动选项（附带检定属性和难度）。
-如果玩家行动失败，必须遭受凌辱或受到伤害。`;
+如果玩家行动失败，必须遭受凌辱或受到伤害。
+【危机动作机制】：
+1. 结算时，如果角色满足某个未持有的危机动作的“持有条件”，并且剧情合理，请将该动作名称加入 new_crisis_actions 中。
+2. 结算时，如果角色满足某个已持有的危机动作（包括本回合并入的）的“使用条件”，必须将其判定为触发，并在故事中描写其触发的经过。然后将该动作名称加入 triggered_crisis_actions 中，并根据其对应的“获得CP”和“获得SP”在 state_changes 中增加相应的点数！`;
   } else {
     userContent += `\n这是第一回合，请描写角色登场并遭遇危机的情节（约800字，合理分段），使用第二人称（“你”）进行叙述，并提供3个本回合的推荐行动选项（附带检定属性和难度）。`;
   }
@@ -192,11 +198,13 @@ ${shortTermMemory.join("\n")}
     "sp": {"chest": 0, "waist": 0, "hip": 0, "mouth": 0, "pain": 0, "mind": 0}, 
     "ap": {"chest": 0, "waist": 0} 
   },
+  "new_crisis_actions": ["<太小的胸部>"], 
+  "triggered_crisis_actions": ["<湿透>"],
   "options": [
     { "text": "...", "attribute": "运动力", "difficulty": 8 }
   ]
 }
-完全简体中文，绝对不要使用斜体（如*文本*或_文本_）。其中，state_changes表示这次变动的增减值，比如hp减少5则为-5。如果没有变动则设为0。options中的attribute必须是：体力、运动力、智力、魔力 中的一个，不能是英文或其他内容。`;
+完全简体中文，绝对不要使用斜体（如*文本*或_文本_）。其中，state_changes表示这次变动的增减值，比如hp减少5则为-5。如果没有变动则设为0。对于 new_crisis_actions 和 triggered_crisis_actions，如果没有就返回空数组[]。options中的attribute必须是：体力、运动力、智力、魔力 中的一个，不能是英文或其他内容。`;
 
   const messages = [
     {

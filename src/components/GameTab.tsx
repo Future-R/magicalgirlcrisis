@@ -122,6 +122,8 @@ export function GameTab() {
         story: turnData.story,
         options: turnData.options || [],
         stateChanges: turnData.state_changes,
+        newCrisisActions: turnData.new_crisis_actions,
+        triggeredCrisisActions: turnData.triggered_crisis_actions,
       };
 
       addHistory(newTurn);
@@ -159,6 +161,8 @@ export function GameTab() {
         story: turnData.story,
         options: turnData.options || [],
         stateChanges: turnData.state_changes,
+        newCrisisActions: turnData.new_crisis_actions,
+        triggeredCrisisActions: turnData.triggered_crisis_actions,
       });
       setRewritePrompt("");
       await saveGame(0);
@@ -198,7 +202,7 @@ export function GameTab() {
     if (!character || !currentTurn) return;
     setIsGenerating(true);
     try {
-      const newChar = applyStateChange(character, currentTurn.stateChanges);
+      const newChar = applyStateChange(character, currentTurn.stateChanges, currentTurn.newCrisisActions, currentTurn.triggeredCrisisActions);
       setCharacter(newChar);
       addShortTermMemory(currentTurn.story);
 
@@ -251,6 +255,8 @@ export function GameTab() {
         story: turnData.story,
         options: turnData.options || [],
         stateChanges: turnData.state_changes,
+        newCrisisActions: turnData.new_crisis_actions,
+        triggeredCrisisActions: turnData.triggered_crisis_actions,
       });
 
       await saveGame(0);
@@ -410,7 +416,7 @@ export function GameTab() {
             </div>
 
             {turn.selectedAction && (
-              <div className="mt-6 bg-black/40 rounded-none p-4 border border-magic-border">
+              <div className="mt-6 bg-black/40 rounded-none p-4 border border-magic-border space-y-2">
                 <div className="flex items-center gap-2 text-magic-text font-medium mb-2">
                   <div className="w-2 h-2 bg-magic-pink rounded-full"></div>
                   {turn.selectedAction}
@@ -423,6 +429,20 @@ export function GameTab() {
                 )}
               </div>
             )}
+            {(turn.newCrisisActions?.length || turn.triggeredCrisisActions?.length) ? (
+              <div className="mt-4 bg-magic-pink/10 border border-magic-pink/20 p-3 space-y-1">
+                {turn.newCrisisActions && turn.newCrisisActions.length > 0 && (
+                  <div className="text-sm font-mono text-red-400">
+                    🔴 获得危机动作：{turn.newCrisisActions.join("、")}
+                  </div>
+                )}
+                {turn.triggeredCrisisActions && turn.triggeredCrisisActions.length > 0 && (
+                  <div className="text-sm font-mono text-orange-400">
+                    ⚠️ 触发危机动作：{turn.triggeredCrisisActions.join("、")}
+                  </div>
+                )}
+              </div>
+            ) : null}
 
             {index === history.length - 1 && !turn.selectedAction && !rollingDice && (
               <div className="mt-8 space-y-4">

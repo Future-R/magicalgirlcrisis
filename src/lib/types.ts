@@ -73,6 +73,14 @@ export interface StateChange {
   };
 }
 
+export interface TurnData {
+  story: string;
+  options: ActionOption[];
+  state_changes: StateChange;
+  new_crisis_actions?: string[];
+  triggered_crisis_actions?: string[];
+}
+
 export interface Turn {
   id: number;
   story: string;
@@ -80,4 +88,6 @@ export interface Turn {
   selectedAction?: string;
   checkResult?: string;
   stateChanges?: StateChange;
+  newCrisisActions?: string[];
+  triggeredCrisisActions?: string[];
 }

@@ -21,10 +21,22 @@ export function rollDice(
 export function applyStateChange(
   character: Character,
   change?: StateChange,
+  newCrisisActions?: string[],
+  triggeredCrisisActions?: string[],
 ): Character {
-  if (!change) return character;
+  let newChar = JSON.parse(JSON.stringify(character)) as Character;
 
-  const newChar = JSON.parse(JSON.stringify(character)) as Character;
+  if (newCrisisActions && newCrisisActions.length > 0) {
+    for (const action of newCrisisActions) {
+      if (!newChar.crisisActions.includes(action)) {
+        newChar.crisisActions.push(action);
+      }
+    }
+  }
+
+  // triggeredCrisisActions are just for history/UI currently, the state changes (CP/SP) should be already in `change` from the LLM.
+
+  if (!change) return newChar;
 
   if (change.hp) {
     newChar.derivedStats.hp = Math.min(
