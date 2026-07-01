@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useGameStore } from "../lib/store";
 import { generateTurnData, analyzeAction, compressMemory, generateWorldBook } from "../lib/api";
-import { rollDice, applyStateChange, cn } from "../lib/utils";
+import { rollDice, applyStateChange, cn, normalizeStringArray } from "../lib/utils";
 import { ActionOption, Turn } from "../lib/types";
 import { Send, RefreshCw, Dice5 } from "lucide-react";
 
@@ -70,6 +70,7 @@ export function GameTab() {
   const {
     character,
     apiKey,
+    difficultyModifier,
     history,
     isGenerating,
     setIsGenerating,
@@ -94,6 +95,18 @@ export function GameTab() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const currentTurn = history.length > 0 ? history[history.length - 1] : null;
+
+  const getRecentTriggeredActions = () => {
+    const recent = new Set<string>();
+    const recentHistory = history.slice(-5);
+    for (const turn of recentHistory) {
+      if (turn.triggeredCrisisActions) {
+        const actions = Array.isArray(turn.triggeredCrisisActions) ? turn.triggeredCrisisActions : [turn.triggeredCrisisActions];
+        actions.forEach((a: string) => recent.add(a));
+      }
+    }
+    return Array.from(recent);
+  };
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -122,8 +135,8 @@ export function GameTab() {
         story: turnData.story,
         options: turnData.options || [],
         stateChanges: turnData.state_changes,
-        newCrisisActions: turnData.new_crisis_actions,
-        triggeredCrisisActions: turnData.triggered_crisis_actions,
+        newCrisisActions: normalizeStringArray(turnData.new_crisis_actions),
+        triggeredCrisisActions: normalizeStringArray(turnData.triggered_crisis_actions),
       };
 
       addHistory(newTurn);
@@ -155,14 +168,15 @@ export function GameTab() {
         checkResult,
         apiKey,
         rewritePrompt,
+        getRecentTriggeredActions(),
       );
 
       updateHistory(currentTurn.id, {
         story: turnData.story,
         options: turnData.options || [],
         stateChanges: turnData.state_changes,
-        newCrisisActions: turnData.new_crisis_actions,
-        triggeredCrisisActions: turnData.triggered_crisis_actions,
+        newCrisisActions: normalizeStringArray(turnData.new_crisis_actions),
+        triggeredCrisisActions: normalizeStringArray(turnData.triggered_crisis_actions),
       });
       setRewritePrompt("");
       await saveGame(0);
@@ -207,14 +221,16 @@ export function GameTab() {
       addShortTermMemory(currentTurn.story);
 
       let attrVal = 0;
-      if (attributeName === "体力" || attributeName.toLowerCase() === "physical") attrVal = newChar.stats.physical;
-      if (attributeName === "运动力" || attributeName.toLowerCase() === "agility") attrVal = newChar.stats.agility;
-      if (attributeName === "智力" || attributeName.toLowerCase() === "intelligence") attrVal = newChar.stats.intelligence;
-      if (attributeName === "魔力" || attributeName.toLowerCase() === "magic") attrVal = newChar.stats.magic;
+      if (attributeName.includes("体") || attributeName.toLowerCase() === "physical") attrVal = newChar.stats.physical;
+      if (attributeName.includes("运动") || attributeName.includes("敏捷") || attributeName.toLowerCase() === "agility") attrVal = newChar.stats.agility;
+      if (attributeName.includes("智") || attributeName.toLowerCase() === "intelligence") attrVal = newChar.stats.intelligence;
+      if (attributeName.includes("魔") || attributeName.toLowerCase() === "magic") attrVal = newChar.stats.magic;
 
-      const roll = rollDice(attrVal, difficulty);
+      const finalDifficulty = difficulty + (difficultyModifier || 0);
+      const roll = rollDice(attrVal, finalDifficulty);
 
-      setRollingDice({ active: true, text: `正在进行 [${attributeName}] 检定... (难度 ${difficulty})` });
+      const modifierText = difficultyModifier > 0 ? `+${difficultyModifier}` : (difficultyModifier < 0 ? `${difficultyModifier}` : '');
+      setRollingDice({ active: true, text: `正在进行 [${attributeName}] 检定... (难度 ${difficulty}${modifierText ? ` ${modifierText} = ${finalDifficulty}` : ''})` });
       await new Promise(r => setTimeout(r, 1500));
       setRollingDice({ active: false, text: roll.resultStr, result: roll.success ? "成功" : "失败" });
       await new Promise(r => setTimeout(r, 1500));
@@ -248,6 +264,8 @@ export function GameTab() {
         actionText,
         roll.resultStr,
         apiKey,
+        "",
+        getRecentTriggeredActions(),
       );
 
       addHistory({
@@ -255,8 +273,8 @@ export function GameTab() {
         story: turnData.story,
         options: turnData.options || [],
         stateChanges: turnData.state_changes,
-        newCrisisActions: turnData.new_crisis_actions,
-        triggeredCrisisActions: turnData.triggered_crisis_actions,
+        newCrisisActions: normalizeStringArray(turnData.new_crisis_actions),
+        triggeredCrisisActions: normalizeStringArray(turnData.triggered_crisis_actions),
       });
 
       await saveGame(0);

@@ -11,9 +11,20 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<
     "game" | "character" | "history" | "settings"
   >("game");
-  const { loadGame, isGenerating, history, currentTurnId } = useGameStore();
+  const { loadGame, isGenerating, history, currentTurnId, setApiKey, apiKey } = useGameStore();
   const [showGenerationToast, setShowGenerationToast] = useState(false);
   const prevGenerating = useRef(isGenerating);
+
+  // Initialize API key from localforage
+  useEffect(() => {
+    import("localforage").then((localforage) => {
+      localforage.default.getItem<string>("hc_apikey").then((key) => {
+        if (key && !apiKey) {
+          setApiKey(key);
+        }
+      });
+    });
+  }, [setApiKey, apiKey]);
 
   // Monitor generation state to show toast if not on game tab
   useEffect(() => {

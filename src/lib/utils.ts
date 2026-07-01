@@ -18,6 +18,28 @@ export function rollDice(
   return { total, resultStr, success };
 }
 
+export function normalizeStringArray(input: any): string[] {
+  if (!input) return [];
+  if (typeof input === 'string') return [input];
+  if (Array.isArray(input)) {
+    return input.map(item => {
+      if (typeof item === 'string') return item;
+      if (typeof item === 'object' && item !== null) {
+        if (item.名称) return String(item.名称);
+        if (item.name) return String(item.name);
+        return JSON.stringify(item);
+      }
+      return String(item);
+    });
+  }
+  if (typeof input === 'object' && input !== null) {
+    if (input.名称) return [String(input.名称)];
+    if (input.name) return [String(input.name)];
+    return [JSON.stringify(input)];
+  }
+  return [String(input)];
+}
+
 export function applyStateChange(
   character: Character,
   change?: StateChange,
@@ -26,8 +48,11 @@ export function applyStateChange(
 ): Character {
   let newChar = JSON.parse(JSON.stringify(character)) as Character;
 
-  if (newCrisisActions && newCrisisActions.length > 0) {
-    for (const action of newCrisisActions) {
+  let actionsToAdd: string[] = normalizeStringArray(newCrisisActions);
+
+  if (actionsToAdd.length > 0) {
+    if (!newChar.crisisActions) newChar.crisisActions = [];
+    for (const action of actionsToAdd) {
       if (!newChar.crisisActions.includes(action)) {
         newChar.crisisActions.push(action);
       }

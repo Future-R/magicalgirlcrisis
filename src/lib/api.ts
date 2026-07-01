@@ -49,8 +49,18 @@ export async function callDeepseek(
       const data = await res.json();
       let content = data.choices[0].message.content;
       if (isJson) {
-        content = content.replace(/```json\n?/g, "").replace(/```\n?/g, "");
-        return JSON.parse(content);
+        let cleanContent = content.replace(/```json\n?/g, "").replace(/```\n?/g, "");
+        const firstBrace = cleanContent.indexOf('{');
+        const lastBrace = cleanContent.lastIndexOf('}');
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace >= firstBrace) {
+          cleanContent = cleanContent.substring(firstBrace, lastBrace + 1);
+        }
+        try {
+          return JSON.parse(cleanContent);
+        } catch (parseError) {
+          console.error("JSON Parse Error. Content was:", cleanContent);
+          throw parseError;
+        }
       }
       return content;
     } catch (e) {
@@ -137,8 +147,8 @@ export async function analyzeAction(action: string, apiKey: string) {
     },
     {
       role: "user",
-      content: `玩家选择手动行动：${action}。请分析该行动最适合检定的属性（只能从“体力”、“运动力”、“智力”、“魔力”中选择其一），并给出一个较高的难度值（8-14之间，因为这是非推荐行为所以偏高）。返回严格的JSON格式：
-{ "attribute": "体力", "difficulty": 10 }
+      content: `玩家选择手动行动：${action}。请分析该行动最适合检定的属性（只能从“体力”、“运动力”、“智力”、“魔力”中选择其一），并根据“2d6+属性加成>=难度”的规则（属性通常在1~5之间），给出一个合理的检定难度值（通常在9~15之间，普通难度9-11，困难12-14，极难15+）。返回严格的JSON格式：
+{ "attribute": "体力", "difficulty": 12 }
 务必返回合法的JSON数据。`,
     },
   ];
@@ -155,6 +165,7 @@ export async function generateTurnData(
   checkResult: string,
   apiKey: string,
   rewritePrompt?: string,
+  recentTriggeredActions?: string[],
 ) {
   const isFirstTurn = !lastAction;
 
@@ -180,7 +191,11 @@ ${shortTermMemory.join("\n")}
 如果玩家行动失败，必须遭受凌辱或受到伤害。
 【危机动作机制】：
 1. 结算时，如果角色满足某个未持有的危机动作的“持有条件”，并且剧情合理，请将该动作名称加入 new_crisis_actions 中。
-2. 结算时，如果角色满足某个已持有的危机动作（包括本回合并入的）的“使用条件”，必须将其判定为触发，并在故事中描写其触发的经过。然后将该动作名称加入 triggered_crisis_actions 中，并根据其对应的“获得CP”和“获得SP”在 state_changes 中增加相应的点数！`;
+2. 结算时，如果角色满足某个已持有的危机动作（包括本回合并入的）的“使用条件”，并且在此次危机/战斗中还没有被触发过，则将其判定为触发，并在故事中描写其触发的经过。如果近期短期记忆中已经触发过该动作，请务必不要重复触发！
+3. 将触发的动作名称加入 triggered_crisis_actions 中，并务必根据其对应的“获得CP”和“获得SP”在 state_changes 中增加相应的点数！
+
+${recentTriggeredActions && recentTriggeredActions.length > 0 ? `注意：以下危机动作在近期的战斗回合中已经触发过，同一次战斗中绝对不能再次触发它们：\n${recentTriggeredActions.join("、")}` : ""}
+`;
   } else {
     userContent += `\n这是第一回合，请描写角色登场并遭遇危机的情节（约800字，合理分段），使用第二人称（“你”）进行叙述，并提供3个本回合的推荐行动选项（附带检定属性和难度）。`;
   }
@@ -201,10 +216,12 @@ ${shortTermMemory.join("\n")}
   "new_crisis_actions": ["<太小的胸部>"], 
   "triggered_crisis_actions": ["<湿透>"],
   "options": [
-    { "text": "...", "attribute": "运动力", "difficulty": 8 }
+    { "text": "...", "attribute": "运动力", "difficulty": 10 }
   ]
 }
-完全简体中文，绝对不要使用斜体（如*文本*或_文本_）。其中，state_changes表示这次变动的增减值，比如hp减少5则为-5。如果没有变动则设为0。对于 new_crisis_actions 和 triggered_crisis_actions，如果没有就返回空数组[]。options中的attribute必须是：体力、运动力、智力、魔力 中的一个，不能是英文或其他内容。`;
+完全简体中文，绝对不要使用斜体（如*文本*或_文本_）。其中，state_changes表示这次变动的增减值，比如hp减少5则为-5。如果没有变动则设为0。对于 new_crisis_actions 和 triggered_crisis_actions，如果没有就返回空数组[]。
+options中的attribute必须是：体力、运动力、智力、魔力 中的一个，不能是英文或其他内容。
+注意：系统采用“2d6+属性值>=难度”进行判定（人物属性通常在1~5之间），所以普通的难度应该在9~11，困难在12~14，极难在15+，请根据动作描述合理给出稍有挑战性的难度，避免过低。`;
 
   const messages = [
     {

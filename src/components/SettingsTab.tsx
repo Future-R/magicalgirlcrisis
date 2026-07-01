@@ -8,6 +8,8 @@ export function SettingsTab() {
   const {
     apiKey,
     setApiKey,
+    difficultyModifier,
+    setDifficultyModifier,
     systemPrompt,
     setSystemPrompt,
     saveGame,
@@ -128,6 +130,30 @@ export function SettingsTab() {
                 {isTesting ? "测试中..." : "测试连接"}
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-magic-surface p-6 border border-magic-border">
+        <h2 className="text-xl font-bold mb-4 text-magic-text border-b border-magic-border pb-2">
+          游戏难度设置
+        </h2>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-400 mb-1 flex justify-between">
+              <span>基础难度调整值</span>
+              <span className="text-magic-pink font-mono">{difficultyModifier > 0 ? `+${difficultyModifier}` : difficultyModifier}</span>
+            </label>
+            <input
+              type="range"
+              min="-1"
+              max="5"
+              step="1"
+              value={difficultyModifier}
+              onChange={(e) => setDifficultyModifier(Number(e.target.value))}
+              className="w-full accent-magic-pink"
+            />
+            <p className="text-xs text-slate-500 mt-1">此值将直接加在所有检定的目标难度上。正值增加难度，负值降低难度。</p>
           </div>
         </div>
       </div>
