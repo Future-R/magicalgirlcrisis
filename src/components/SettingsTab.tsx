@@ -146,8 +146,8 @@ export function SettingsTab() {
             </label>
             <input
               type="range"
-              min="-1"
-              max="5"
+              min="-2"
+              max="2"
               step="1"
               value={difficultyModifier}
               onChange={(e) => setDifficultyModifier(Number(e.target.value))}

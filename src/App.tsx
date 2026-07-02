@@ -140,7 +140,7 @@ export default function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden selection:bg-magic-pink selection:text-black">
+    <div className="fixed inset-0 h-[100dvh] flex flex-col overflow-hidden selection:bg-magic-pink selection:text-black">
       <header className="h-16 border-b border-magic-border flex items-center justify-between px-6 bg-magic-surface shrink-0">
         <div className="flex items-center gap-4">
           <button onClick={() => setAppState("title")} className="text-xl font-bold tracking-widest text-magic-pink hover:text-pink-400">

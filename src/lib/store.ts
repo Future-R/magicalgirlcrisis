@@ -36,7 +36,7 @@ export interface GameState {
 
 export const useGameStore = create<GameState>((set, get) => ({
   apiKey: "",
-  difficultyModifier: 2,
+  difficultyModifier: 0,
   systemPrompt: DEFAULT_SYSTEM_PROMPT,
   worldBook:
     "一开始，世界被分成三份。我们人类居住的地方被称为地上界。神和天使在天界无所事事。恶魔和魔族在魔界折腾他们自己的东西。这三个世界互相不能干涉彼此，一直没有冲突出现。然而，平衡被破坏了。一开始只是天神和魔王的口角之争，慢慢发展成了小规模的冲突战斗。而战斗并不止于此。魔族对人类的侵食开始了。天界派遣了最低级的天使来到地上界。这是一种被称为“小天禧”的毛茸茸小动物一样的生物。它们引导具有魔力的少女进行战斗，反抗魔族的侵略。",
@@ -103,7 +103,7 @@ export const useGameStore = create<GameState>((set, get) => ({
         longTermMemory: saveData.longTermMemory || [],
         history: saveData.history || [],
         currentTurnId: saveData.currentTurnId || 1,
-        difficultyModifier: saveData.difficultyModifier !== undefined ? saveData.difficultyModifier : 2,
+        difficultyModifier: saveData.difficultyModifier !== undefined ? saveData.difficultyModifier : 0,
       });
       return true;
     }

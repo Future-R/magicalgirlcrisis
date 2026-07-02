@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useGameStore } from "../lib/store";
-import { generateTurnData, analyzeAction, compressMemory, generateWorldBook } from "../lib/api";
+import { generateTurnData, analyzeAction, compressMemory, generateWorldBook, checkCrisisActions, calculateStateChanges } from "../lib/api";
+import { CHARACTER_CREATION_RULES } from "../lib/rules";
 import { rollDice, applyStateChange, cn, normalizeStringArray } from "../lib/utils";
 import { ActionOption, Turn } from "../lib/types";
 import { Send, RefreshCw, Dice5 } from "lucide-react";
@@ -65,6 +66,23 @@ const WORLD_PRESET_1 = `不思议魔法的世界
 祂们混入地球的人群中，以为了再建马尤里伽或者支配地球为目的而暗中活跃着。
 传闻以“人应当将所有的可能性献给神明全般接受自己的命运”为教义的新型邪教团体“迷途孩子之家”是祂们所创建的……`;
 
+const WORLD_PRESET_2 = `魔法少女天穹法妮娅（Celestial Phania）
+这是一个关于对抗来自异世界深渊魔界侵蚀的魔法少女物语，故事发生在充满了诡异暗流的现代都市“惠格斯”。
+
+【惠格斯与异界】
+现代都市“惠格斯”表面上繁华宁静，但实际上空间结构极其不稳定，正遭受被称为“异界”的黑暗世界的无形侵蚀。异界中充斥着充满恶意的魔种、触手怪物以及邪恶魔物。它们通过在都市各处悄然打开的“结界裂隙”或“传送之门”，绑架市民、诱捕少女，以此夺取人类的“潜能”、“生命力（Mana）”或贞洁。
+
+【魔能与魔法少女】
+为了对抗异界的魔物，拥有极高魔法适应性的少女们可以通过与神秘的引导妖精（如吉祥物小动物）签订契约，觉醒为掌控星光与天穹之力的“魔法少女”。其中，最著名的传奇少女便是手持光之圣剑、守护都市夜空的“天穹法妮娅（Phania）”。魔法少女通过神圣的战斗装束来获得魔能防护（AP），但在激烈的战斗中，这层防护会被魔物强力破坏或被黏液酸性融化。
+
+【异界的魔爪与威胁】
+1. 欲望温床：异界内布满黏液、藤蔓和触手，魔物会利用这些道具缠绕、禁锢魔法少女，通过各种淫邪折磨和极端的感官侵犯摧毁其心智。
+2. 催眠与堕落：邪恶组织和魔族祭司会施加精神控制，试图将高傲坚强的魔法少女诱导、调教为顺从于快感和魔力的奴隶。
+3. 身体改造与烙印：被俘的少女可能会面临产卵、寄生、受精等各种令人战栗的异类改造，纯洁之躯会留下不可磨灭的淫魔烙印。
+
+【时间轮回与救赎】
+如果魔法少女在异界深处彻底力竭并屈服，等待她的将是无休止的凌辱和精神崩塌。但在执念与救赎之光的共鸣下，她们必须在被异界完全吞噬前不断挣扎求生，净化黑暗，关闭异界之门。`;
+
 export function GameTab() {
   const store = useGameStore();
   const {
@@ -91,15 +109,26 @@ export function GameTab() {
   const [showSaveLoad, setShowSaveLoad] = useState(false);
   const [saveSlot, setSaveSlot] = useState(1);
   const [loadSlot, setLoadSlot] = useState(0);
+  const [resolutionStatus, setResolutionStatus] = useState<{
+    active: boolean;
+    logs: string[];
+    triggeredActions: string[];
+    stateChanges: any;
+    checking: boolean;
+    applying: boolean;
+    rolling: boolean;
+    rollingText: string;
+    rollingResult: string;
+  } | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const latestTurnRef = useRef<HTMLDivElement>(null);
 
   const currentTurn = history.length > 0 ? history[history.length - 1] : null;
 
   const getRecentTriggeredActions = () => {
     const recent = new Set<string>();
-    const recentHistory = history.slice(-5);
-    for (const turn of recentHistory) {
+    for (const turn of history) {
       if (turn.triggeredCrisisActions) {
         const actions = Array.isArray(turn.triggeredCrisisActions) ? turn.triggeredCrisisActions : [turn.triggeredCrisisActions];
         actions.forEach((a: string) => recent.add(a));
@@ -109,10 +138,12 @@ export function GameTab() {
   };
 
   useEffect(() => {
-    if (scrollRef.current) {
+    if (latestTurnRef.current) {
+      latestTurnRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else if (scrollRef.current) {
       scrollRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [history, isGenerating, rollingDice]);
+  }, [history.length, isGenerating]);
 
   const handleStart = async () => {
     if (!character || !apiKey)
@@ -188,7 +219,7 @@ export function GameTab() {
   };
 
   const handleSelectAction = async (option: ActionOption) => {
-    await processAction(option.text, option.attribute, option.difficulty);
+    await processAction(option.text, option.attribute, option.difficulty, false);
   };
 
   const handleCustomAction = async () => {
@@ -200,6 +231,7 @@ export function GameTab() {
         customAction,
         analysis.attribute,
         analysis.difficulty,
+        true,
       );
       setCustomAction("");
     } catch (e: any) {
@@ -212,36 +244,175 @@ export function GameTab() {
     actionText: string,
     attributeName: string,
     difficulty: number,
+    isCustomAction = false,
   ) => {
     if (!character || !currentTurn) return;
     setIsGenerating(true);
-    try {
-      const newChar = applyStateChange(character, currentTurn.stateChanges, currentTurn.newCrisisActions, currentTurn.triggeredCrisisActions);
-      setCharacter(newChar);
-      addShortTermMemory(currentTurn.story);
 
+    const initialLogs = ["🔍 开始进行回合结算...", "────────────────────────"];
+    setResolutionStatus({
+      active: true,
+      logs: initialLogs,
+      triggeredActions: [],
+      stateChanges: null,
+      checking: true,
+      applying: false,
+      rolling: false,
+      rollingText: "",
+      rollingResult: "",
+    });
+
+    try {
+      // Step 1: Check Crisis Actions
+      const recentTriggered = getRecentTriggeredActions();
+      const currentStory = currentTurn.story;
+      const triggeredActions = await checkCrisisActions(
+        currentStory,
+        character.crisisActions || [],
+        recentTriggered,
+        apiKey,
+      );
+
+      const resolvedTriggered = normalizeStringArray(triggeredActions);
+      const step1Logs = [...initialLogs];
+
+      if (resolvedTriggered.length > 0) {
+        step1Logs.push(`⚠️ 检测到触发危机动作:`);
+        for (const actName of resolvedTriggered) {
+          const ruleAct = CHARACTER_CREATION_RULES.危机动作.find(r => r.名称 === actName);
+          const desc = ruleAct ? ruleAct.描述 : "";
+          const cp = ruleAct ? ruleAct.获得CP : 0;
+          const spStr = ruleAct ? ` 获得SP: ${ruleAct.获得SP}` : "";
+          step1Logs.push(`   * 【${actName}】 (获得CP: ${cp}${spStr})`);
+          if (desc) step1Logs.push(`     "${desc}"`);
+        }
+      } else {
+        step1Logs.push(`✅ 经分析，本回合没有触发任何新的危机动作。`);
+      }
+      step1Logs.push(`────────────────────────`);
+
+      setResolutionStatus(prev => prev ? {
+        ...prev,
+        logs: step1Logs,
+        triggeredActions: resolvedTriggered,
+        checking: false,
+        applying: true,
+      } : null);
+
+      await new Promise(r => setTimeout(r, 1500));
+
+      // Step 2: Calculate State Changes
+      const stateChanges = await calculateStateChanges(
+        currentStory,
+        actionText,
+        resolvedTriggered,
+        apiKey,
+      );
+
+      const step2Logs = [...step1Logs];
+      step2Logs.push(`📊 本回合最终属性改动结算:`);
+      
+      const formatChange = (val: number) => val >= 0 ? `+${val}` : `${val}`;
+      if (stateChanges.hp) step2Logs.push(`   * 生命值 (HP): ${formatChange(stateChanges.hp)}`);
+      if (stateChanges.mp) step2Logs.push(`   * 魔力值 (MP): ${formatChange(stateChanges.mp)}`);
+      if (stateChanges.cp) step2Logs.push(`   * 危机值 (CP): ${formatChange(stateChanges.cp)}`);
+      
+      if (stateChanges.ap) {
+        if (stateChanges.ap.chest) step2Logs.push(`   * 胸部护甲 (AP.chest): ${formatChange(stateChanges.ap.chest)}`);
+        if (stateChanges.ap.waist) step2Logs.push(`   * 腰部护甲 (AP.waist): ${formatChange(stateChanges.ap.waist)}`);
+      }
+
+      if (stateChanges.sp) {
+        const spLines: string[] = [];
+        const keys = ["chest", "waist", "hip", "mouth", "pain", "mind"] as const;
+        keys.forEach(k => {
+          if (stateChanges.sp[k]) {
+            let label: string = k;
+            if (k === "chest") label = "胸部感官";
+            if (k === "waist") label = "腰部感官";
+            if (k === "hip") label = "臀部感官";
+            if (k === "mouth") label = "口腔感官";
+            if (k === "pain") label = "痛觉";
+            if (k === "mind") label = "精神压力";
+            spLines.push(`${label}: ${formatChange(stateChanges.sp[k])}`);
+          }
+        });
+        if (spLines.length > 0) {
+          step2Logs.push(`   * 感官与精神 (SP): ${spLines.join("、")}`);
+        }
+      }
+
+      const hasNoChanges = !stateChanges.hp && !stateChanges.mp && !stateChanges.cp && 
+        (!stateChanges.ap || (!stateChanges.ap.chest && !stateChanges.ap.waist)) &&
+        (!stateChanges.sp || !Object.values(stateChanges.sp).some(v => v !== 0));
+
+      if (hasNoChanges) {
+        step2Logs.push(`   * 各项属性未发生变动。`);
+      }
+      step2Logs.push(`────────────────────────`);
+
+      // Apply changes to local character card
+      const newChar = applyStateChange(character, stateChanges, [], resolvedTriggered);
+      setCharacter(newChar);
+
+      setResolutionStatus(prev => prev ? {
+        ...prev,
+        logs: step2Logs,
+        stateChanges,
+        applying: false,
+        rolling: true,
+      } : null);
+
+      await new Promise(r => setTimeout(r, 1500));
+
+      // Step 3: Rolling Dice
       let attrVal = 0;
       if (attributeName.includes("体") || attributeName.toLowerCase() === "physical") attrVal = newChar.stats.physical;
       if (attributeName.includes("运动") || attributeName.includes("敏捷") || attributeName.toLowerCase() === "agility") attrVal = newChar.stats.agility;
       if (attributeName.includes("智") || attributeName.toLowerCase() === "intelligence") attrVal = newChar.stats.intelligence;
       if (attributeName.includes("魔") || attributeName.toLowerCase() === "magic") attrVal = newChar.stats.magic;
 
-      const finalDifficulty = difficulty + (difficultyModifier || 0);
+      const penalty = isCustomAction ? 2 : 0;
+      const finalDifficulty = difficulty + (difficultyModifier || 0) + penalty;
       const roll = rollDice(attrVal, finalDifficulty);
 
-      const modifierText = difficultyModifier > 0 ? `+${difficultyModifier}` : (difficultyModifier < 0 ? `${difficultyModifier}` : '');
-      setRollingDice({ active: true, text: `正在进行 [${attributeName}] 检定... (难度 ${difficulty}${modifierText ? ` ${modifierText} = ${finalDifficulty}` : ''})` });
-      await new Promise(r => setTimeout(r, 1500));
-      setRollingDice({ active: false, text: roll.resultStr, result: roll.success ? "成功" : "失败" });
-      await new Promise(r => setTimeout(r, 1500));
-      setRollingDice(null);
+      const penaltyText = penalty > 0 ? ` + 2(手动动作追加)` : "";
+      const modifierText = difficultyModifier > 0 ? ` + ${difficultyModifier}` : (difficultyModifier < 0 ? ` - ${Math.abs(difficultyModifier)}` : "");
+      
+      const step3Logs = [...step2Logs];
+      step3Logs.push(`🎲 进行 [${attributeName}] 检定...`);
+      step3Logs.push(`   目标难度: ${difficulty}${modifierText}${penaltyText} = ${finalDifficulty}`);
+      
+      setResolutionStatus(prev => prev ? {
+        ...prev,
+        logs: step3Logs,
+        rollingText: `正在掷骰... 目标难度 ${finalDifficulty}`,
+      } : null);
 
+      await new Promise(r => setTimeout(r, 1500));
+
+      step3Logs.push(`   投骰结果: ${roll.resultStr}`);
+      step3Logs.push(`────────────────────────`);
+
+      setResolutionStatus(prev => prev ? {
+        ...prev,
+        logs: step3Logs,
+        rollingText: roll.resultStr,
+        rollingResult: roll.success ? "成功" : "失败",
+      } : null);
+
+      await new Promise(r => setTimeout(r, 1500));
+
+      // Save the resolved results back to current turn card in history
       updateHistory(currentTurn.id, {
         selectedAction: actionText,
         checkResult: roll.resultStr,
+        triggeredCrisisActions: resolvedTriggered,
+        stateChanges: stateChanges,
       });
 
-      // 4. Memory compression check
+      // Step 4: Memory Compression check
+      addShortTermMemory(currentTurn.story);
       let currentShortTerm = [...shortTermMemory, currentTurn.story];
       let currentLongTerm = [...longTermMemory];
       if (currentShortTerm.length >= 30) {
@@ -254,7 +425,13 @@ export function GameTab() {
         currentLongTerm.push(compressed);
       }
 
-      // 5. Generate next turn
+      // Step 5: Generate next turn
+      step3Logs.push(`🔮 正在生成下一回合故事情节...`);
+      setResolutionStatus(prev => prev ? {
+        ...prev,
+        logs: step3Logs,
+      } : null);
+
       const turnData = await generateTurnData(
         store.systemPrompt,
         store.worldBook,
@@ -265,7 +442,7 @@ export function GameTab() {
         roll.resultStr,
         apiKey,
         "",
-        getRecentTriggeredActions(),
+        [...recentTriggered, ...resolvedTriggered],
       );
 
       addHistory({
@@ -279,9 +456,10 @@ export function GameTab() {
 
       await saveGame(0);
     } catch (e: any) {
-      alert("执行失败: " + e.message);
+      alert("结算失败: " + e.message);
     } finally {
       setIsGenerating(false);
+      setResolutionStatus(null);
     }
   };
 
@@ -304,12 +482,18 @@ export function GameTab() {
           <h2 className="text-xl font-bold text-magic-text border-b border-magic-border pb-2">
             1. 设定世界观
           </h2>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <button
               onClick={() => store.setWorldBook(WORLD_PRESET_1)}
               className="btn-action px-3 py-1 text-xs"
             >
               预设：不思议魔法的世界
+            </button>
+            <button
+              onClick={() => store.setWorldBook(WORLD_PRESET_2)}
+              className="btn-action px-3 py-1 text-xs"
+            >
+              预设：魔法少女天穹法妮娅
             </button>
           </div>
           <p className="text-sm text-slate-400">你可以手动输入世界观，或者输入几个关键词让AI生成。</p>
@@ -373,17 +557,17 @@ export function GameTab() {
   return (
     <div className="flex-1 overflow-y-auto w-full p-4 md:p-8">
       <div className="max-w-4xl mx-auto pb-32 pt-8">
-        {/* 右侧固定工具栏 - 存档读档 */}
-        <div className="fixed top-1/4 right-4 z-50 flex flex-col items-end gap-2">
+        {/* 右侧/底端固定工具栏 - 存档读档 */}
+        <div className="fixed max-md:bottom-10 max-md:left-0 max-md:right-0 max-md:bg-black/95 max-md:border-t max-md:border-magic-border max-md:p-2 md:top-1/4 md:right-4 z-50 flex flex-col md:items-end gap-2">
           <button
             onClick={() => setShowSaveLoad(!showSaveLoad)}
-            className="bg-black/80 border border-magic-border text-magic-pink px-3 py-2 text-xs hover:border-magic-pink transition-colors shadow-lg shadow-magic-pink/20"
+            className="bg-black/80 border border-magic-border text-magic-pink px-3 py-2 text-xs hover:border-magic-pink transition-colors shadow-lg shadow-magic-pink/20 max-md:w-full max-md:text-center"
           >
             {showSaveLoad ? "隐藏存档面板" : "存档 / 读档"}
           </button>
       
           {showSaveLoad && (
-            <div className="bg-black/90 p-4 border border-magic-border w-64 flex flex-col gap-6 shadow-2xl backdrop-blur-sm">
+            <div className="bg-black/90 p-4 border border-magic-border w-64 flex flex-col gap-6 shadow-2xl backdrop-blur-sm max-md:w-full max-md:border-0 max-md:grid max-md:grid-cols-2 max-md:gap-4 max-md:p-3">
               <div className="space-y-2">
                 <div className="text-sm text-slate-400 border-b border-magic-border/50 pb-1 mb-2">存入档位</div>
                 <div className="flex gap-1 flex-wrap">
@@ -400,7 +584,7 @@ export function GameTab() {
                 <button onClick={() => { store.saveGame(saveSlot); alert("存档成功！"); }} className="btn-action text-xs py-2 w-full mt-2">保存至 {saveSlot}</button>
               </div>
               <div className="space-y-2">
-                <div className="text-sm text-slate-400 border-b border-magic-border/50 pb-1 mb-2">读取档位 <span className="text-[10px]">(0为自动存档)</span></div>
+                <div className="text-sm text-slate-400 border-b border-magic-border/50 pb-1 mb-2">读取档位 <span className="text-[10px]">(0自动档)</span></div>
                 <div className="flex gap-1 flex-wrap">
                   {[0,1,2,3,4,5].map(i => (
                     <button
@@ -422,6 +606,7 @@ export function GameTab() {
         {history.map((turn, index) => (
           <div
             key={turn.id}
+            ref={index === history.length - 1 ? latestTurnRef : undefined}
             className={cn(
               "bg-magic-surface p-6 md:p-8 rounded-none border border-magic-border transition-all relative",
               index === history.length - 1
@@ -462,7 +647,51 @@ export function GameTab() {
               </div>
             ) : null}
 
-            {index === history.length - 1 && !turn.selectedAction && !rollingDice && (
+            {index === history.length - 1 && resolutionStatus && resolutionStatus.active && (
+              <div className="mt-8 bg-black/80 border border-magic-pink p-6 font-mono text-xs leading-relaxed space-y-4 max-h-96 overflow-y-auto shadow-2xl">
+                <div className="flex items-center justify-between border-b border-magic-border pb-2 mb-2">
+                  <span className="text-magic-pink text-sm font-bold">⚙️ 回合结算核心（Flash Model）</span>
+                  <div className="flex gap-1">
+                    <span className={cn("w-2 h-2 rounded-full", resolutionStatus.checking ? "bg-yellow-500 animate-pulse" : "bg-slate-700")}></span>
+                    <span className={cn("w-2 h-2 rounded-full", resolutionStatus.applying ? "bg-blue-500 animate-pulse" : "bg-slate-700")}></span>
+                    <span className={cn("w-2 h-2 rounded-full", resolutionStatus.rolling ? "bg-pink-500 animate-pulse" : "bg-slate-700")}></span>
+                  </div>
+                </div>
+                <div className="space-y-1.5 max-h-60 overflow-y-auto">
+                  {resolutionStatus.logs.map((line: string, li: number) => (
+                    <div key={li} className={cn(
+                      line.startsWith("🔍") && "text-blue-400 font-bold",
+                      line.startsWith("⚠️") && "text-orange-400 font-bold",
+                      line.startsWith("✅") && "text-green-400",
+                      line.startsWith("📊") && "text-purple-400 font-bold",
+                      line.startsWith("🎲") && "text-pink-400 font-bold",
+                      line.startsWith("🔮") && "text-magic-text animate-pulse",
+                      line.startsWith("   *") && "text-slate-300 pl-4",
+                      line.startsWith("     \"") && "text-slate-500 pl-8 italic",
+                      !line.startsWith("🔍") && !line.startsWith("⚠️") && !line.startsWith("✅") && !line.startsWith("📊") && !line.startsWith("🎲") && !line.startsWith("🔮") && !line.startsWith("   *") && !line.startsWith("     \"") && "text-slate-400"
+                    )}>
+                      {line}
+                    </div>
+                  ))}
+                </div>
+                {resolutionStatus.rollingText && (
+                  <div className="border-t border-magic-border pt-3 mt-3 flex flex-col items-center justify-center space-y-2">
+                    <div className="text-slate-300 font-bold animate-pulse text-center text-xs">
+                      {resolutionStatus.rollingText}
+                    </div>
+                    {resolutionStatus.rollingResult && (
+                      <div className={cn("text-lg font-bold tracking-widest px-4 py-1 bg-black/60 border rounded", 
+                        resolutionStatus.rollingResult === "成功" ? "text-green-500 border-green-500" : "text-red-500 border-red-500"
+                      )}>
+                        {resolutionStatus.rollingResult}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {index === history.length - 1 && !turn.selectedAction && !rollingDice && (!resolutionStatus || !resolutionStatus.active) && (
               <div className="mt-8 space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-bold text-slate-400 tracking-wider">
@@ -564,7 +793,7 @@ export function GameTab() {
       </div>
 
       {isGenerating && (
-        <div className="fixed bottom-6 right-6 bg-gray-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-pulse">
+        <div className="fixed bottom-24 right-6 md:bottom-6 md:right-6 z-[60] bg-gray-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-pulse">
           <RefreshCw size={18} className="animate-spin" />
           <span className="text-sm font-medium tracking-wide">
             正在编制命运……

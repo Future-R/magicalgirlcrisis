@@ -178,6 +178,7 @@ export function CharacterTab() {
 
   const CHARACTER_PRESET_1: Character = {
     name: "索拉·哈雷瓦塔尔",
+    age: 14,
     level: 1,
     stats: { physical: 6, agility: 6, intelligence: 2, magic: 2 },
     attributes: { physical: 6, magic: 2 },
@@ -196,15 +197,27 @@ export function CharacterTab() {
     crisisAbilities: ["《无敌 Invincible》"],
     equipment: ["运动服", "英雄围巾"],
     goals: ["等级3-思慕:成为英雄"],
-    crisisActions: ["<卡进去的布料>", "<湿透>", "<赤红的鲜血>"],
+    crisisActions: [
+      "<卡进去的布料>",
+      "<湿透>",
+      "<秘密花园>",
+      "<太小的胸部>",
+      "<魅惑的曲线>",
+      "<无垢的纯情>",
+      "<羞耻的谩骂>",
+      "<视奸的囚笼>",
+      "<抓住肉桃的手>",
+      "<赤红的鲜血>"
+    ],
     identityTrait: "天空王国女孩",
     physicalTrait: "最强的健康优良儿",
     personalityTrait: "活力满满，善良勇敢但易紧绷",
-    background: "为了成为小时候从危机中拯救出来的像憧憬的人一样的英雄，认真地拼命地每天锻炼中。身手敏捷，体能超群，自从十年前被夏拉拉队长救下后就开始不停的锻炼，实力强到能够轻松在建筑物间跑酷，变身之前的力量就足够将身型健壮的卡巴顿击倒，甚至不变身就能一拳碎石，后续威力越发越强大，进入学校后以相当优异的成绩破掉多个体育记录，被同学称为“最强的健康优良儿”，一旦请假就会引发惊慌。但唯独不会游泳。从小就在思考“怎样成为英雄”而完全没考虑除这以外的其他事，也不在意打扮，去服装店选衣服时也只在意运动服，审美略差，实际上也是个穿什么都好看的女孩子，而且和普通女孩子一样，一旦尝试了也会乐在其中。面对灵异事件相当苦手，也很害怕这一类的东西。每天活力满满，像个太阳一样照耀着身边的朋友们，有着即使害怕也要保护他人的善良与勇气。看到有人遇到危险就会奋不顾身的帮忙，哪怕是敌人遇到危险也会下意识地冲上去帮助对方，但为了保护重要之事容易过于神经紧绷，常常给自己带来无形的心理负担。"
+    background: "为了成为小时候从危机中拯救出来的像憧憬的人一样的英雄，认真地拼命地每天锻炼中。身手敏捷，体能超群，自从十年前被夏拉拉队长救下后就开始不停的锻炼，实力强到能够轻松在建筑物间跑酷，变身之前的力量就足够将身型健壮 of 卡巴顿击倒，甚至不变身就能一拳碎石，后续威力越发越强大，进入学校后以相当优异的成绩破掉多个体育记录，被同学称为“最强的健康优良儿”，一旦请假就会引发惊慌。但唯独不会游泳。从小就在思考“怎样成为英雄”而完全没考虑除这以外的其他事，也不在意打扮，去服装店选衣服时也只在意运动服，审美略差，实际上也是个穿什么都好看的女孩子，而且和普通女孩子一样，一旦尝试了也会乐在其中。面对灵异事件相当苦手，也很害怕这一类的东西。每天活力满满，像个太阳一样照耀着身边的朋友们，有着即使害怕也要保护他人的善良与勇气。看到有人遇到危险就会奋不顾身的帮忙，哪怕是敌人遇到危险也会下意识地冲上去帮助对方，但为了保护重要之事容易过于神经紧绷，常常给自己带来无形的心理负担。"
   };
 
   const CHARACTER_PRESET_2: Character = {
     name: "橘未来",
+    age: 16,
     level: 2,
     stats: { physical: 6, agility: 6, intelligence: 0, magic: 2 },
     attributes: { physical: 10, magic: 1 },
@@ -303,12 +316,21 @@ export function CharacterTab() {
           </div>
           
           <div className="bg-magic-surface border border-magic-border p-6 space-y-6">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-1">
                 <label className="text-xs text-slate-500 uppercase tracking-widest">名字</label>
                 <input
                   value={editChar.name}
                   onChange={(e) => setEditChar({ ...editChar, name: e.target.value })}
+                  className="w-full bg-black/40 border border-magic-border px-3 py-2 text-white text-sm outline-none focus:border-magic-pink"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs text-slate-500 uppercase tracking-widest">年龄</label>
+                <input
+                  type="number"
+                  value={editChar.age !== undefined ? editChar.age : 14}
+                  onChange={(e) => setEditChar({ ...editChar, age: parseInt(e.target.value) || 14 })}
                   className="w-full bg-black/40 border border-magic-border px-3 py-2 text-white text-sm outline-none focus:border-magic-pink"
                 />
               </div>
@@ -462,7 +484,7 @@ export function CharacterTab() {
         </h1>
         <div className="flex items-center gap-2">
           <div className="text-sm text-slate-500 font-mono tracking-widest mr-2">
-            等级 {Number(character.level) || 1}
+            年龄 {character.age !== undefined ? character.age : 14} 岁 | 等级 {Number(character.level) || 1}
           </div>
           <button onClick={handleExportChar} className="btn-action text-xs px-3 py-1.5 hidden md:block">导出</button>
           <label className="btn-action cursor-pointer text-xs px-3 py-1.5 flex items-center justify-center hidden md:block">
@@ -481,6 +503,10 @@ export function CharacterTab() {
               特征
             </h3>
             <ul className="space-y-3 text-sm">
+              <li className="flex flex-col gap-1">
+                <span className="text-slate-500 text-xs">年龄</span>{" "}
+                <span className="text-white">{character.age !== undefined ? character.age : 14} 岁</span>
+              </li>
               <li className="flex flex-col gap-1">
                 <span className="text-slate-500 text-xs">身份</span>{" "}
                 <span className="text-white">{character.identityTrait}</span>

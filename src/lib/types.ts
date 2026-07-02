@@ -33,6 +33,7 @@ export interface DerivedStats {
 
 export interface Character {
   name: string;
+  age: number;
   identityTrait: string;
   physicalTrait: string;
   personalityTrait: string;
